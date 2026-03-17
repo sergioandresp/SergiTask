@@ -6,7 +6,9 @@ import CalendarSidebar from "@/components/UI/CalendarSidebar";
 import DueDateAlerts from "@/components/UI/DueDateAlerts";
 import FocusModal from "@/components/UI/FocusModal";
 import { MacroObjective } from "@/types";
-import { Target, Menu, Sun, Moon } from "lucide-react";
+import { Target, Menu, Sun, Moon, LogOut } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
   const [objectives, setObjectives] = useState<MacroObjective[]>([]);
@@ -16,8 +18,23 @@ export default function Home() {
   const [focusViewOffset, setFocusViewOffset] = useState<0 | 1>(0);
   const [isDailyFocusOpen, setIsDailyFocusOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
+    const checkSession = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+      } else {
+        setUser(user);
+        setLoading(false);
+      }
+    };
+    checkSession();
+
     setMounted(true);
     const saved = localStorage.getItem("macro-objectives");
     if (saved) {
@@ -25,7 +42,7 @@ export default function Home() {
     }
     // Sync isDark with what the inline script in layout already applied
     setIsDark(document.documentElement.classList.contains("dark"));
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (mounted) localStorage.setItem("macro-objectives", JSON.stringify(objectives));
@@ -114,7 +131,7 @@ export default function Home() {
     }));
   };
 
-  if (!mounted) {
+  if (!mounted || loading) {
     return (
       <div className="w-full min-h-screen flex justify-center items-center py-20 opacity-50 bg-[var(--background)]">
         <Target size={32} className="animate-pulse" />
@@ -144,15 +161,44 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          className="p-2.5 rounded-xl text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-200"
-          aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-          title={isDark ? "Modo claro" : "Modo oscuro"}
-        >
-          {isDark ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
+        {/* Theme toggle and Profile */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleTheme}
+            className="p-2.5 rounded-xl text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-200"
+            aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+            title={isDark ? "Modo claro" : "Modo oscuro"}
+          >
+            {isDark ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+
+          {user && (
+            <div className="flex items-center gap-3 ml-2 pl-4 border-l border-[var(--card-border)]">
+              <div className="flex items-center gap-2">
+                {user.user_metadata?.avatar_url ? (
+                  <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-8 h-8 rounded-full" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-[var(--primary)] text-white flex items-center justify-center font-bold text-sm">
+                    {user.user_metadata?.name?.charAt(0) || user.user_metadata?.full_name?.charAt(0) || user.email?.charAt(0) || 'U'}
+                  </div>
+                )}
+                <span className="text-sm font-medium text-[var(--foreground)] hidden sm:inline-block">
+                  {user.user_metadata?.name || user.user_metadata?.full_name || user.email}
+                </span>
+              </div>
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  router.push("/login");
+                }}
+                className="p-2 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut size={20} />
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       <div className="flex flex-1 pt-20">
@@ -174,7 +220,7 @@ export default function Home() {
             <header className="mb-6 text-center lg:text-left flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pt-6 pb-2">
               <div>
                 <h1 className="text-5xl font-bold tracking-tight text-[var(--foreground)] mb-4 leading-tight">
-                  Tu Workspace Organizado
+                  ¡Hola {user?.user_metadata?.name?.split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || 'Usuario'}! Simplifica tu día
                 </h1>
                 <p className="text-xl font-medium text-[var(--text-muted)] max-w-xl mx-auto lg:mx-0 leading-relaxed">
                   ¡Simplifica tu día y potencia tu enfoque!
